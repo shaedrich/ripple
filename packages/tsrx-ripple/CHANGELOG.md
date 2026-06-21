@@ -1,5 +1,164 @@
 # @tsrx/ripple
 
+## 0.1.33
+
+### Patch Changes
+
+- [#1283](https://github.com/Ripple-TS/ripple/pull/1283)
+  [`ba498cd`](https://github.com/Ripple-TS/ripple/commit/ba498cde76e9f83235ce91da825f403a28441bff)
+  Thanks [@leonidaz](https://github.com/leonidaz)! - Print empty fragements as is
+  inside expressions {<></>} instead of {null}
+
+- [#1292](https://github.com/Ripple-TS/ripple/pull/1292)
+  [`35ac700`](https://github.com/Ripple-TS/ripple/commit/35ac70052d79efae41bb1df2440fee3f052ca115)
+  Thanks [@leonidaz](https://github.com/leonidaz)! - Allow a
+  `@if`/`@for`/`@switch`/`@try` control-flow directive or a `@{ … }` code block to
+  be combined into an expression (React, Preact, Solid, Vue, and Ripple), instead
+  of crashing the printer with "Not implemented: JSX…Expression" or leaking a bare
+  `if (…) { … }` into expression position.
+
+  A directive combined into an expression — an operator operand
+  (`const ad = (@if (…) { … }) || 'fallback'`), a conditional branch, a `@for`
+  iterable, an `@if`/`@switch` test — is now wrapped so it lives inside a
+  fragment. For the JSX targets the directive is wrapped in a `<> … </>` (kept as
+  the truthy fragment value in an operand position, collapsed to its rendered
+  value in a "raw value" slot). For Ripple the directive is wrapped before
+  normalization, so the client and server lower it to a `_$_.tsrx_element(…)`
+  render (the control flow runs inside the render callback) and the `to_ts` output
+  keeps the `<> … </>` for its TSX type view.
+
+  For Ripple the wrap covers a directive used in ANY value position, not just
+  operators: the sole value of a slot (`let cd = @if (…) { … }`,
+  `cd = @switch (…) { … }`, `render(@if (…) { … })`), a concise arrow body
+  (`xs.map((x) => @if (x) { … })`), a `return` argument inside a nested function,
+  a member object, and so on — all previously leaked a bare `if (…) { … }`
+  statement in some or all modes. The positions where a directive is already
+  lowered correctly (render children, statements, `@if` branches, a `@{ … }` code
+  block's render output) are left untouched. A `@{ … }` code block self-lowers to
+  an IIFE in every position and is never wrapped (so it is not redundantly
+  fragment-wrapped in, e.g., an array element). The JSX targets already collapse a
+  sole-value directive to its rendered value, so they are unchanged.
+
+- [#1286](https://github.com/Ripple-TS/ripple/pull/1286)
+  [`0e9f523`](https://github.com/Ripple-TS/ripple/commit/0e9f52358a615c2fc7759544e96c43dccb533c86)
+  Thanks [@leonidaz](https://github.com/leonidaz)! - Keep empty fragments in
+  expression position: `let b = <></>` stays `<></>` instead of `null`, and
+  `let c = <><></></>` keeps both levels instead of collapsing to `<></>`. Applies
+  to the React, Preact, Solid, Vue, and Ripple to_ts targets.
+
+- [#1292](https://github.com/Ripple-TS/ripple/pull/1292)
+  [`35ac700`](https://github.com/Ripple-TS/ripple/commit/35ac70052d79efae41bb1df2440fee3f052ca115)
+  Thanks [@leonidaz](https://github.com/leonidaz)! - Keep an authored `<> … </>`
+  fragment verbatim in EVERY position, instead of unwrapping a single-child
+  fragment to its bare child (React, Preact, Solid, Vue, and Ripple `to_ts`).
+
+  Previously a single-child fragment was collapsed — `const v = <>{1}</>` became
+  `const v = 1`, `return <>{x}</>` became `return x`, and
+  `@if (cond()) { <>{'Hi'}</> }` became `cond() ? 'Hi' : null` — turning the
+  author's JSX into a plain value and changing its meaning (a fragment is always a
+  truthy element and has a different type, so collapsing can produce the wrong
+  output). Authored fragments are now kept everywhere:
+  - value positions: a variable initializer, an assignment, an operator operand, a
+    conditional branch, an array element, a call argument;
+  - render output: a component's `<> … </>` render, a `return <>…</>`, an arrow
+    body `() => <>…</>`;
+  - the branches of an `@if`/`@for`/`@switch`/`@try` (`@if (c) { <>{'Hi'}</> }` →
+    `c ? <>{'Hi'}</> : null`, `@for (…) { <>{x}</> }` → `… => <>{x}</>`);
+  - Ripple `to_ts` additionally keeps a fragment in a JSX-child `{ … }` container
+    slot (`<div>{<>{x}</>}</div>`), matching the JS targets.
+
+  An empty authored `<></>` is also kept verbatim everywhere — `return <></>`
+  stays `return <></>` (not `null`) on all targets.
+
+  A compiler-generated wrapper fragment (the one added around a control-flow
+  directive so it lowers to a value) is marked internally and still collapses, so
+  `const x = @switch (…) { … }` is unchanged. A nested authored fragment collapses
+  outer→inner (`<><>{x}</></>` → `<>{x}</>`) — still a fragment, so no wrong
+  output. A `<style>` inside a fragment is still collected and scoped (the re-wrap
+  operates on the already style-stripped value). Ripple's client/server runtime
+  output is unaffected (it renders fragments via `tsrx_element`).
+
+- [#1292](https://github.com/Ripple-TS/ripple/pull/1292)
+  [`35ac700`](https://github.com/Ripple-TS/ripple/commit/35ac70052d79efae41bb1df2440fee3f052ca115)
+  Thanks [@leonidaz](https://github.com/leonidaz)! - Keep a `<> … </>` fragment
+  that is combined into an expression as a fragment, instead of collapsing its
+  single child to a bare value (React, Preact, Solid, Vue, and Ripple `to_ts`).
+
+  A fragment is always a truthy element, but its single child may be falsy, so
+  unwrapping `<>{0}</>` to `0` flipped the meaning of `<>{0}</> || 'default'` from
+  rendering `0` to rendering `'default'`. When a fragment is the operand of an
+  operator, a conditional branch, an array element, or another combined
+  expression, the fragment is now preserved. The existing collapse is unchanged
+  for a fragment that is the sole value of a render-output slot (a `return`, a
+  variable initializer, an arrow body, a call argument), where it only renders and
+  the collapse is invisible.
+
+- [#1292](https://github.com/Ripple-TS/ripple/pull/1292)
+  [`35ac700`](https://github.com/Ripple-TS/ripple/commit/35ac70052d79efae41bb1df2440fee3f052ca115)
+  Thanks [@leonidaz](https://github.com/leonidaz)! - Lower a
+  `@if`/`@for`/`@switch`/`@try` directive used as a VALUE to a typed value in
+  Ripple's `to_ts` (Volar/editor) output, matching the JS targets — instead of a
+  void IIFE whose branches had no `return` (so the binding typed as `void`).
+
+  Previously `const v = @if (cond()) { <a/> } @else { <b/> }` produced
+  `const v = (() => { if (cond()) { <a/>; } else { <b/>; } })()` (no returns →
+  `void`). It now produces a typed value per directive:
+  - `@if` → a ternary: `const v = cond() ? <a /> : <b />;` (`@else if` chains
+    nest; a missing/empty branch is `null`; a branch with setup becomes a
+    returning IIFE).
+  - `@switch` → a returning IIFE:
+    `(() => { switch (cond()) { case 1: return <a />; … } return null; })()`.
+  - `@try` → a returning IIFE:
+    `(() => { try { return <a />; } catch (e) { return <b />; } })()`.
+  - `@for` → `Array.from(iterable).map((x, i) => { return <li>{x}</li>; })`.
+    `@for` accepts any iterable, but `Set`/`Map`/generators have no `.length` or
+    `.map`, so lowering them directly typed the binding as an error and never
+    surfaced the `@empty` branch; `Array.from(…)` yields a real array (the `to_ts`
+    analog of the JS targets' `map_iterable` helper). `; index i` becomes the
+    callback's second parameter `(x, i)`; `@empty` is
+    `Array.from(…).length === 0 ? <empty> : <map>`. `@for await` iterates an
+    `AsyncIterable`, which `Array.from` does not accept, so it instead lowers to
+    an awaited async IIFE with a real `for await` loop
+    (`await (async () => { const a = []; for await (const x of xs) a.push(…); return a; })()`).
+
+  A branch or case with multiple sibling templates (`@case 1: { <a /> <b /> }`) is
+  merged into a single `return <><a /><b /></>` rather than several returns where
+  only the first would be reachable. A directive NESTED inside a branch — directly
+  (`@case 1: { <a /> @if (c) { <b /> } }` → `return <><a />{c ? <b /> : null}</>`)
+  or inside an authored fragment that is the branch's value
+  (`@case 1: { <><a /> @for (…) { … }</> }` → `return <><a />{xs.map(…)}</>`) — is
+  value content too, so it is lowered to its own value and merged into the
+  fragment, not left as a bare `if (c) { … }` / `for (…) { … }` dropped from the
+  value. This holds at any nesting depth and for every directive combination. So
+  the editor types match the template.
+
+  The change is scoped to the generated value-position wrapper, so a directive in
+  render position (a statement, a component's output, a direct JSX child) still
+  renders unchanged, and the client/server runtime output is byte-identical (only
+  the `to_ts` view changes).
+
+- [#1305](https://github.com/Ripple-TS/ripple/pull/1305)
+  [`bbc3843`](https://github.com/Ripple-TS/ripple/commit/bbc384387e33c538234be36c07cc4b30ef6ce136)
+  Thanks [@leonidaz](https://github.com/leonidaz)! - Server transform: accumulate
+  each runtime block's output into a single `__out` string and push it once per
+  block (flushing only before a child block) instead of emitting an `output_push`
+  per element. Adjacent static + dynamic holes coalesce into one
+  `__out += a + b + c`, and accumulation spans loops and control flow, so e.g. a
+  whole `@for` feed renders in one push. Output is byte-identical; this only
+  changes how the SSR string is assembled.
+- Updated dependencies
+  [[`ba498cd`](https://github.com/Ripple-TS/ripple/commit/ba498cde76e9f83235ce91da825f403a28441bff),
+  [`313b351`](https://github.com/Ripple-TS/ripple/commit/313b3513e4a959dd80b546da41c798066c5ccb0f),
+  [`35ac700`](https://github.com/Ripple-TS/ripple/commit/35ac70052d79efae41bb1df2440fee3f052ca115),
+  [`bbe6e74`](https://github.com/Ripple-TS/ripple/commit/bbe6e7422c690558f0dfcb3abe5452d4f4cdde91),
+  [`0e9f523`](https://github.com/Ripple-TS/ripple/commit/0e9f52358a615c2fc7759544e96c43dccb533c86),
+  [`35ac700`](https://github.com/Ripple-TS/ripple/commit/35ac70052d79efae41bb1df2440fee3f052ca115),
+  [`35ac700`](https://github.com/Ripple-TS/ripple/commit/35ac70052d79efae41bb1df2440fee3f052ca115),
+  [`2b65285`](https://github.com/Ripple-TS/ripple/commit/2b65285bfcd4c6a0aa93d7fa0b25082e6ec74e1f),
+  [`b887deb`](https://github.com/Ripple-TS/ripple/commit/b887debf5f47e63d73184ac218ec8b3542a5e21c),
+  [`3668c5f`](https://github.com/Ripple-TS/ripple/commit/3668c5fe9cdaca4862707d653d23af94780f42af)]:
+  - @tsrx/core@0.1.33
+
 ## 0.1.32
 
 ### Patch Changes

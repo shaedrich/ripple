@@ -1,5 +1,12 @@
 # ripple-recursive-bench
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - ripple@0.3.85
+
 ## 0.0.1
 
 ### Patch Changes
